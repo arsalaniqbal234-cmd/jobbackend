@@ -16,7 +16,7 @@ async def scrape_jobs(db: Session = Depends(get_db)):
         title = job.get("position", "Unknown")
         company = job.get("company", "Unknown")
         job_url = job.get("url", "")
-
+        
         existing = db.query(JobModel).filter(JobModel.source_id == source_id).first()
 
         if existing:

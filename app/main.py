@@ -7,6 +7,9 @@ import requests
 from database import engine, get_db, Base
 from models import Job as JobModel
 
+import os
+from fastapi import Header
+
 
 app = FastAPI()
 
@@ -23,25 +26,9 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
-@app.get("/")
-async def root():
-    return {"message": "Hello Arsalan, API is working!"}
 
 
-@app.get("/about")
-async def about():
-    return {
-        "creator": "Arsalan",
-        "project": "Week 1 Full Stack App"
-    }
 
-
-@app.get("/user/{user_id}")
-async def get_user(user_id: int):
-    return {
-        "user_id": user_id,
-        "message": f"Showing profile for user {user_id}"
-    }
 
 
 @app.get("/search")
@@ -58,32 +45,17 @@ async def search(keyword: str, limit: int = 10, db: Session = Depends(get_db)):
     return results
 
 
-class JobCreate(BaseModel):
-    title: str
-    company: str
-    salary: int
 
-
-@app.post("/jobs")
-async def create_job(
-    job: JobCreate,
-    db: Session = Depends(get_db)
-):
-    new_job = JobModel(
-        title=job.title,
-        company=job.company,
-        salary=job.salary
-    )
-
-    db.add(new_job)
-    db.commit()
-    db.refresh(new_job)
-
-    return new_job
 
 
 @app.post("/scrape")
-async def scrape_jobs(db: Session = Depends(get_db)):
+async def scrape_jobs(
+    db: Session = Depends(get_db),
+    x_api_key: str = Header(None)
+):
+    if x_api_key != os.getenv("SCRAPE_SECRET_KEY"):
+        raise HTTPException(status_code=403, detail="Invalid or missing API key")
+
     url = "https://remoteok.com/api"
     headers = {"User-Agent": "Mozilla/5.0"}
     response = requests.get(url, headers=headers)
