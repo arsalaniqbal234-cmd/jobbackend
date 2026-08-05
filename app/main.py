@@ -1,14 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 import requests
+import os
 
 from database import engine, get_db, Base
 from models import Job as JobModel
-
-import os
-from fastapi import Header
 
 
 app = FastAPI()
@@ -26,11 +23,6 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
-
-
-
-
-
 @app.get("/search")
 async def search(keyword: str, limit: int = 10, db: Session = Depends(get_db)):
     results = (
@@ -43,9 +35,6 @@ async def search(keyword: str, limit: int = 10, db: Session = Depends(get_db)):
         .all()
     )
     return results
-
-
-
 
 
 @app.post("/scrape")
@@ -71,6 +60,9 @@ async def scrape_jobs(
         title = job.get("position", "Unknown")
         company = job.get("company", "Unknown")
         job_url = job.get("url", "")
+        salary_min = job.get("salary_min", 0)
+        salary_max = job.get("salary_max", 0)
+        real_salary = salary_max if salary_max else salary_min
 
         existing = db.query(JobModel).filter(JobModel.source_id == source_id).first()
 
@@ -82,7 +74,7 @@ async def scrape_jobs(
             source_id=source_id,
             title=title,
             company=company,
-            salary=0,
+            salary=real_salary,
             url=job_url
         )
         db.add(new_job)
@@ -92,20 +84,12 @@ async def scrape_jobs(
     return {
         "message": f"{added_count} new jobs added, {skipped_count} duplicates skipped"
     }
-    
 
 
 @app.get("/jobs")
-async def get_jobs(
-    db: Session = Depends(get_db)
-):
-
+async def get_jobs(db: Session = Depends(get_db)):
     jobs = db.query(JobModel).all()
-
     return jobs
-
-
-
 
 
 @app.get("/jobs/{job_id}")
