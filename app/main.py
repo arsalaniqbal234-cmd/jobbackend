@@ -47,40 +47,57 @@ async def scrape_jobs(
 
     url = "https://remoteok.com/api"
     headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
-    data = response.json()
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="RemoteOK took too long to respond")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch jobs from RemoteOK: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=502, detail="RemoteOK returned invalid data")
+
+    if not isinstance(data, list) or len(data) < 2:
+        raise HTTPException(status_code=502, detail="Unexpected response format from RemoteOK")
 
     jobs_data = data[1:]
 
     added_count = 0
     skipped_count = 0
 
-    for job in jobs_data[:20]:
-        source_id = str(job.get("id"))
-        title = job.get("position", "Unknown")
-        company = job.get("company", "Unknown")
-        job_url = job.get("url", "")
-        salary_min = job.get("salary_min", 0)
-        salary_max = job.get("salary_max", 0)
-        real_salary = salary_max if salary_max else salary_min
+    try:
+        for job in jobs_data:
+            source_id = str(job.get("id"))
+            title = job.get("position", "Unknown")
+            company = job.get("company", "Unknown")
+            job_url = job.get("url", "")
+            salary_min = job.get("salary_min", 0)
+            salary_max = job.get("salary_max", 0)
+            real_salary = salary_max if salary_max else salary_min
 
-        existing = db.query(JobModel).filter(JobModel.source_id == source_id).first()
+            existing = db.query(JobModel).filter(JobModel.source_id == source_id).first()
 
-        if existing:
-            skipped_count += 1
-            continue
+            if existing:
+                skipped_count += 1
+                continue
 
-        new_job = JobModel(
-            source_id=source_id,
-            title=title,
-            company=company,
-            salary=real_salary,
-            url=job_url
-        )
-        db.add(new_job)
-        added_count += 1
+            new_job = JobModel(
+                source_id=source_id,
+                title=title,
+                company=company,
+                salary=real_salary,
+                url=job_url
+            )
+            db.add(new_job)
+            added_count += 1
 
-    db.commit()
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error while saving jobs: {str(e)}")
+
     return {
         "message": f"{added_count} new jobs added, {skipped_count} duplicates skipped"
     }
