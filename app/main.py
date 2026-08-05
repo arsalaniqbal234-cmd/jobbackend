@@ -36,6 +36,13 @@ async def search(keyword: str, limit: int = 10, db: Session = Depends(get_db)):
     )
     return results
 
+@app.get("/")
+def home():
+    return{"message":"job backend api"}
+
+
+    
+
 
 @app.post("/scrape")
 async def scrape_jobs(
