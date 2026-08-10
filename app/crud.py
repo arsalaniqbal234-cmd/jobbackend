@@ -2,8 +2,8 @@ from sqlalchemy.orm import Session
 from models import Job as JobModel
 
 
-def get_all_jobs(db: Session):
-    return db.query(JobModel).all()
+def get_all_jobs(db: Session, limit: int = 20, offset: int = 0):
+    return db.query(JobModel).offset(offset).limit(limit).all()
 
 
 def get_job_by_id(db: Session, job_id: int):

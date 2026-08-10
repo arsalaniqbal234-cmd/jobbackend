@@ -75,8 +75,8 @@ async def scrape_jobs(
 
 
 @router.get("/jobs", response_model=list[schemas.JobResponse])
-async def get_jobs(db: Session = Depends(get_db)):
-    return crud.get_all_jobs(db)
+async def get_jobs(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    return crud.get_all_jobs(db, limit=limit, offset=offset)
 
 
 @router.get("/jobs/{job_id}", response_model=schemas.JobResponse)
