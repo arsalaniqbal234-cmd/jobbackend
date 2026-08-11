@@ -47,7 +47,15 @@ async def scrape_jobs(
 
     try:
         for job in jobs_data:
-            source_id = str(job.get("id"))
+
+            raw_id = job.get("id")
+
+            if not raw_id:
+
+                skipped_count += 1
+                continue
+
+            source_id = str(raw_id)
             title = job.get("position", "Unknown")
             company = job.get("company", "Unknown")
             job_url = job.get("url", "")
