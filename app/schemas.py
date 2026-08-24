@@ -10,6 +10,7 @@ class JobResponse(BaseModel):
     company: str
     salary: int
     url: Optional[str]
+    description: Optional[str] = None  # <-- Added optional description
     scraped_at: Optional[datetime]
 
     class Config:
