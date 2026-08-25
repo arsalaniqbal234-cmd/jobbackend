@@ -38,6 +38,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 
 def upsert_jobs(db: Session, jobs_data: list):
+    """
+    Postgres-specific upsert (uses sqlalchemy.dialects.postgresql).
+    Will not work on SQLite or other databases — fine since production
+    runs on Postgres (Neon), but keep this in mind if the DB ever changes.
+    """
     if not jobs_data:
         return 0
 
