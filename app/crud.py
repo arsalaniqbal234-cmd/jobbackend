@@ -50,3 +50,8 @@ def create_job(db: Session, source_id: str, title: str, company: str, salary: in
     )
     db.add(new_job)
     return new_job
+
+
+def get_existing_source_ids(db: Session, source_ids: list):
+    rows = db.query(JobModel.source_id).filter(JobModel.source_id.in_(source_ids)).all()
+    return {row[0] for row in rows}
