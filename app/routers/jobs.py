@@ -16,6 +16,20 @@ def search(keyword: str, limit: int = 10, db: Session = Depends(get_db)):
     return crud.search_jobs(db, keyword, limit)
 
 
+@router.get("/health")
+def check_all_sources_health():
+    results = {}
+    for source_name, scraper_class in AVAILABLE_SCRAPERS.items():
+        scraper = scraper_class()
+        try:
+            scraper.fetch()
+            results[source_name] = "healthy"
+        except Exception as e:
+            results[source_name] = f"unhealthy: {str(e)}"
+
+    return {"sources": results}
+
+
 @router.post("/scrape/{source}")
 def scrape_jobs(
     source: str, db: Session = Depends(get_db), x_api_key: str = Header(None)
@@ -26,6 +40,7 @@ def scrape_jobs(
         raise HTTPException(
             status_code=500, detail="Server misconfiguration: scrape key not set"
         )
+
 
     if not x_api_key or not hmac.compare_digest(x_api_key, expected_key):
         raise HTTPException(status_code=403, detail="Invalid or missing API key")
@@ -57,27 +72,51 @@ def scrape_jobs(
             status_code=502, detail=f"Failed to parse jobs from {source}: {str(e)}"
         )
 
-
     try:
-        
         jobs_data = [job.to_dict() for job in normalized_jobs]
         added_count = crud.upsert_jobs(db, jobs_data)
         db.commit()
         skipped_count = len(jobs_data) - added_count
     except Exception as e:
-        
         db.rollback()
         raise HTTPException(
-        status_code=500, detail=f"Database error while saving jobs: {str(e)}"
-    )
-
+            status_code=500, detail=f"Database error while saving jobs: {str(e)}"
+        )
 
     return {
-    "source": source,
-    "message": (f"{added_count} new jobs added, {skipped_count} duplicates skipped"),
-}
+        "source": source,
+        "message": (
+            f"{added_count} new jobs added, {skipped_count} duplicates skipped"
+        ),
+    }
 
+@router.post("/scrape-all")
+def scrape_all_sources(
+    db: Session = Depends(get_db),
+    x_api_key: str = Header(None)
+):
+    expected_key = os.getenv("SCRAPE_SECRET_KEY")
+    if not expected_key:
+        raise HTTPException(status_code=500, detail="Server misconfiguration: scrape key not set")
+    if not x_api_key or not hmac.compare_digest(x_api_key, expected_key):
+        raise HTTPException(status_code=403, detail="Invalid or missing API key")
 
+    results = {}
+
+    for source_name, scraper_class in AVAILABLE_SCRAPERS.items():
+        scraper = scraper_class()
+        try:
+            normalized_jobs = scraper.run()
+            jobs_data = [job.to_dict() for job in normalized_jobs]
+            added = crud.upsert_jobs(db, jobs_data)
+            db.commit()
+            skipped = len(jobs_data) - added
+            results[source_name] = {"added": added, "skipped": skipped}
+        except Exception as e:
+            db.rollback()
+            results[source_name] = {"error": str(e)}
+
+    return {"results": results}
 @router.get("/jobs", response_model=list[schemas.JobResponse])
 def get_jobs(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
     return crud.get_all_jobs(db, limit=limit, offset=offset)
