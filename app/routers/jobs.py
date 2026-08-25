@@ -57,40 +57,29 @@ def scrape_jobs(
             status_code=502, detail=f"Failed to parse jobs from {source}: {str(e)}"
         )
 
-    added_count = 0
-    skipped_count = 0
+
     try:
-        incoming_ids = [job.source_id for job in normalized_jobs]
-        existing_ids = crud.get_existing_source_ids(db, incoming_ids)
-        seen_in_batch = set()
-
-        for job in normalized_jobs:
-            if job.source_id in existing_ids or job.source_id in seen_in_batch:
-                skipped_count += 1
-                continue
-
-            seen_in_batch.add(job.source_id)
-            crud.create_job_from_normalized(db, job.to_dict())
-            added_count += 1
+        
+        jobs_data = [job.to_dict() for job in normalized_jobs]
+        added_count = crud.upsert_jobs(db, jobs_data)
         db.commit()
+        skipped_count = len(jobs_data) - added_count
     except Exception as e:
+        
         db.rollback()
         raise HTTPException(
-            status_code=500, detail=f"Database error while saving jobs: {str(e)}"
-        )
+        status_code=500, detail=f"Database error while saving jobs: {str(e)}"
+    )
+
 
     return {
-        "source": source,
-        "message": (
-            f"{added_count} new jobs added, {skipped_count} duplicates skipped"
-        ),
-    }
+    "source": source,
+    "message": (f"{added_count} new jobs added, {skipped_count} duplicates skipped"),
+}
 
 
 @router.get("/jobs", response_model=list[schemas.JobResponse])
-def get_jobs(
-    limit: int = 20, offset: int = 0, db: Session = Depends(get_db)
-):
+def get_jobs(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
     return crud.get_all_jobs(db, limit=limit, offset=offset)
 
 

@@ -34,22 +34,17 @@ def search_jobs(db: Session, keyword: str, limit: int = 10):
         .all()
     )
 
-
-def get_job_by_source_id(db: Session, source_id: str):
-    return db.query(JobModel).filter(JobModel.source_id == source_id).first()
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 
-def create_job(db: Session, source_id: str, title: str, company: str, salary: int, url: str, description: str = ""):
-    new_job = JobModel(
-        source_id=source_id,
-        title=title,
-        company=company,
-        salary=salary,
-        url=url,
-        description=description,  # <-- Added description here as well
-    )
-    db.add(new_job)
-    return new_job
+def upsert_jobs(db: Session, jobs_data: list):
+    if not jobs_data:
+        return 0
+
+    stmt = pg_insert(JobModel).values(jobs_data)
+    stmt = stmt.on_conflict_do_nothing(index_elements=["source_id"])
+    result = db.execute(stmt)
+    return result.rowcount
 
 
 def get_existing_source_ids(db: Session, source_ids: list):
