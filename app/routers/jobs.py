@@ -1,7 +1,10 @@
 import hmac
 import os
-from fastapi import APIRouter, Depends, Header, HTTPException
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import requests
+from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
@@ -11,40 +14,61 @@ from database import get_db
 router = APIRouter()
 
 
+def verify_api_key(x_api_key: str = Header(None)):
+    expected_key = os.getenv("SCRAPE_SECRET_KEY")
+    if not expected_key:
+        raise HTTPException(status_code=500, detail="Server misconfiguration: scrape key not set")
+    if not x_api_key or not hmac.compare_digest(x_api_key, expected_key):
+        raise HTTPException(status_code=403, detail="Invalid or missing API key")
+
+
 @router.get("/search", response_model=list[schemas.JobResponse])
 def search(keyword: str, limit: int = 10, db: Session = Depends(get_db)):
     return crud.search_jobs(db, keyword, limit)
 
 
 @router.get("/health")
-def check_all_sources_health():
+def check_all_sources_health(_: None = Depends(verify_api_key)):
     results = {}
+    all_healthy = True
+
     for source_name, scraper_class in AVAILABLE_SCRAPERS.items():
         scraper = scraper_class()
         try:
             scraper.fetch()
             results[source_name] = "healthy"
-        except Exception as e:
-            results[source_name] = f"unhealthy: {str(e)}"
+        except Exception:
+            results[source_name] = "unhealthy"
+            all_healthy = False
 
-    return {"sources": results}
+    status_code = 200 if all_healthy else 503
+    return JSONResponse(status_code=status_code, content={"sources": results})
+
+
+@router.get("/health/{source}")
+def check_source_health(source: str, _: None = Depends(verify_api_key)):
+    if source not in AVAILABLE_SCRAPERS:
+        raise HTTPException(status_code=404, detail=f"Unknown source '{source}'")
+
+    scraper_class = AVAILABLE_SCRAPERS[source]
+    scraper = scraper_class()
+
+    try:
+        scraper.fetch()
+        return {"source": source, "status": "healthy"}
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={"source": source, "status": "unhealthy"}
+        )
 
 
 @router.post("/scrape/{source}")
 def scrape_jobs(
-    source: str, db: Session = Depends(get_db), x_api_key: str = Header(None)
+    source: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_api_key)
 ):
-    expected_key = os.getenv("SCRAPE_SECRET_KEY")
-
-    if not expected_key:
-        raise HTTPException(
-            status_code=500, detail="Server misconfiguration: scrape key not set"
-        )
-
-
-    if not x_api_key or not hmac.compare_digest(x_api_key, expected_key):
-        raise HTTPException(status_code=403, detail="Invalid or missing API key")
-
     if source not in AVAILABLE_SCRAPERS:
         raise HTTPException(
             status_code=404,
@@ -90,33 +114,50 @@ def scrape_jobs(
         ),
     }
 
+
+def _run_single_scraper(source_name: str, scraper_class):
+    """Runs fetch+parse for one source. No DB access here — that happens
+    back on the main thread to avoid sharing one DB session across threads."""
+    scraper = scraper_class()
+    try:
+        normalized_jobs = scraper.run()
+        return source_name, [job.to_dict() for job in normalized_jobs], None
+    except Exception as e:
+        return source_name, None, str(e)
+
+
 @router.post("/scrape-all")
 def scrape_all_sources(
     db: Session = Depends(get_db),
-    x_api_key: str = Header(None)
+    _: None = Depends(verify_api_key)
 ):
-    expected_key = os.getenv("SCRAPE_SECRET_KEY")
-    if not expected_key:
-        raise HTTPException(status_code=500, detail="Server misconfiguration: scrape key not set")
-    if not x_api_key or not hmac.compare_digest(x_api_key, expected_key):
-        raise HTTPException(status_code=403, detail="Invalid or missing API key")
-
     results = {}
 
-    for source_name, scraper_class in AVAILABLE_SCRAPERS.items():
-        scraper = scraper_class()
-        try:
-            normalized_jobs = scraper.run()
-            jobs_data = [job.to_dict() for job in normalized_jobs]
-            added = crud.upsert_jobs(db, jobs_data)
-            db.commit()
-            skipped = len(jobs_data) - added
-            results[source_name] = {"added": added, "skipped": skipped}
-        except Exception as e:
-            db.rollback()
-            results[source_name] = {"error": str(e)}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(_run_single_scraper, name, cls): name
+            for name, cls in AVAILABLE_SCRAPERS.items()
+        }
+
+        for future in as_completed(futures):
+            source_name, jobs_data, error = future.result()
+
+            if error:
+                results[source_name] = {"error": error}
+                continue
+
+            try:
+                added = crud.upsert_jobs(db, jobs_data)
+                db.commit()
+                skipped = len(jobs_data) - added
+                results[source_name] = {"added": added, "skipped": skipped}
+            except Exception as e:
+                db.rollback()
+                results[source_name] = {"error": str(e)}
 
     return {"results": results}
+
+
 @router.get("/jobs", response_model=list[schemas.JobResponse])
 def get_jobs(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
     return crud.get_all_jobs(db, limit=limit, offset=offset)
