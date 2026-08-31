@@ -7,7 +7,7 @@ from alembic import context
 
 # 1. Add Backend directory to sys.path so 'app' and 'database' import cleanly
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "Backend"))
+BACKEND_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)

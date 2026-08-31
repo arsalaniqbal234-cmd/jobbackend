@@ -18,6 +18,4 @@ app.add_middleware(
 def home():
     return({"message":"job platform running api"})
 
-Base.metadata.create_all(bind=engine)
-
 app.include_router(jobs.router)
