@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import engine, Base
 from app.routers import jobs
 
 app = FastAPI()
@@ -16,6 +15,6 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return({"message":"job platform running api"})
+    return {"message": "job platform running api"}
 
 app.include_router(jobs.router)
