@@ -1,17 +1,18 @@
-from pydantic import BaseModel
-from datetime import datetime
 from typing import Optional
+from pydantic import BaseModel
 
-
-class JobResponse(BaseModel):
-    id: int
-    source_id: Optional[str]
+class JobBase(BaseModel):
+    source_id: str
     title: str
     company: str
-    salary: int
-    url: Optional[str]
-    description: Optional[str] = None  # <-- Added optional description
-    scraped_at: Optional[datetime]
+    url: str
+    salary: Optional[int] = None
+    salary_currency: Optional[str] = None
+    salary_period: Optional[str] = None
+    description: Optional[str] = None
+
+class JobResponse(JobBase):
+    id: int
 
     class Config:
         from_attributes = True

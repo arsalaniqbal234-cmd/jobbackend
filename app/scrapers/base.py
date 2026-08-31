@@ -1,18 +1,29 @@
 import time
 import random
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class NormalizedJob:
     """Standard shape every scraper must convert its data into."""
-    def __init__(self, source_id: str, title: str, company: str, url: str,
-                 salary: int = 0, description: str = ""):
+    def __init__(
+        self,
+        source_id: str,
+        title: str,
+        company: str,
+        url: str,
+        salary: Optional[int] = None,
+        salary_currency: Optional[str] = None,
+        salary_period: Optional[str] = None,
+        description: str = ""
+    ):
         self.source_id = source_id
         self.title = title
         self.company = company
         self.url = url
         self.salary = salary
+        self.salary_currency = salary_currency
+        self.salary_period = salary_period
         self.description = description
 
     def to_dict(self) -> Dict[str, Any]:
@@ -22,6 +33,8 @@ class NormalizedJob:
             "company": self.company,
             "url": self.url,
             "salary": self.salary,
+            "salary_currency": self.salary_currency,
+            "salary_period": self.salary_period,
             "description": self.description,
         }
 

@@ -28,7 +28,9 @@ class JobicyScraper(BaseScraper):
                     title=job.get("jobTitle", "Unknown"),
                     company=job.get("companyName", "Unknown"),
                     url=job.get("url", ""),
-                    salary=0,
+                    salary=None,
+                    salary_currency=None,
+                    salary_period=None,
                     description=job.get("jobExcerpt", ""),
                 )
             )

@@ -28,7 +28,9 @@ class ArbeitnowScraper(BaseScraper):
                     title=job.get("title", "Unknown"),
                     company=job.get("company_name", "Unknown"),
                     url=job.get("url", ""),
-                    salary=0,
+                    salary=None,
+                    salary_currency=None,
+                    salary_period=None,
                     description=job.get("description", ""),
                 )
             )

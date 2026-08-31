@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "app/main.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/cron/scrape-all",
+      "schedule": "0 */6 * * *"
+    }
   ]
 }

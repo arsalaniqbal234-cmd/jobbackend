@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models import Job as JobModel
+from app.models import Job as JobModel
 
 
 def get_all_jobs(db: Session, limit: int = 20, offset: int = 0):
@@ -15,9 +15,11 @@ def create_job_from_normalized(db: Session, job_data: dict):
         source_id=job_data["source_id"],
         title=job_data["title"],
         company=job_data["company"],
-        salary=job_data["salary"],
+        salary=job_data.get("salary"),
+        salary_currency=job_data.get("salary_currency"),  # Added
+        salary_period=job_data.get("salary_period"),      # Added
         url=job_data["url"],
-        description=job_data.get("description", ""),  # <-- Save description to DB
+        description=job_data.get("description", ""),
     )
     db.add(new_job)
     return new_job
@@ -33,6 +35,7 @@ def search_jobs(db: Session, keyword: str, limit: int = 10):
         .limit(limit)
         .all()
     )
+
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
