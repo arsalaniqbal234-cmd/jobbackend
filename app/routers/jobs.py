@@ -197,8 +197,13 @@ def scrape_all_sources(
 
 
 @router.get("/jobs", response_model=list[schemas.JobResponse])
-def get_jobs(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
-    return crud.get_all_jobs(db, limit=limit, offset=offset)
+def get_jobs(
+    limit: int = 20,
+    offset: int = 0,
+    company: str = None,
+    db: Session = Depends(get_db)
+):
+    return crud.get_all_jobs(db, limit=limit, offset=offset, company=company)
 
 
 @router.get("/jobs/{job_id}", response_model=schemas.JobResponse)

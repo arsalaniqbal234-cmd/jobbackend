@@ -2,9 +2,11 @@ from sqlalchemy.orm import Session
 from app.models import Job as JobModel
 
 
-def get_all_jobs(db: Session, limit: int = 20, offset: int = 0):
-    return db.query(JobModel).offset(offset).limit(limit).all()
-
+def get_all_jobs(db: Session, limit: int = 20, offset: int = 0, company: str = None):
+    query = db.query(JobModel)
+    if company:
+        query = query.filter(JobModel.company.ilike(f"%{company}%"))
+    return query.order_by(JobModel.id.desc()).offset(offset).limit(limit).all()
 
 def get_job_by_id(db: Session, job_id: int):
     return db.query(JobModel).filter(JobModel.id == job_id).first()
