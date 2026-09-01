@@ -1,8 +1,9 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.models import Job as JobModel
 
 
-def get_all_jobs(db: Session, limit: int = 20, offset: int = 0, company: str = None):
+def  get_all_jobs(db: Session, limit: int = 20, offset: int = 0, company: Optional[str] = None):
     query = db.query(JobModel)
     if company:
         query = query.filter(JobModel.company.ilike(f"%{company}%"))
