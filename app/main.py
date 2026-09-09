@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,12 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import jobs
 from app.scheduler import start_scheduler, scheduler
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Automatically start APScheduler inside Docker on startup
-    start_scheduler()
+    if os.getenv("RUN_SCHEDULER") == "true":
+        start_scheduler()
     yield
-    scheduler.shutdown()
+    if os.getenv("RUN_SCHEDULER") == "true":
+        scheduler.shutdown()
+
 
 app = FastAPI(lifespan=lifespan)
 

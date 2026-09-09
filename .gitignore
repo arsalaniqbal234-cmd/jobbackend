@@ -1,4 +1,23 @@
-
+# Virtual Environment
 venv/
+.venv/
+env/
+
+# Python Bytecode & Cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Environment Variables
 .env
+
+# SQLite Databases / Local Data (if applicable)
+*.db
+*.sqlite3
+
+# IDE & OS Specific
+.vscode/
+.idea/
+.DS_Store
