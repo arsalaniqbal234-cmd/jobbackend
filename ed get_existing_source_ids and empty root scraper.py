@@ -1,0 +1,5 @@
+[33m0dbd9a8[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Gate scheduler behind RUN_SCHEDULER env flag to prevent double scheduling, remove dead code
+[33mb9a4f50[m fix: clean up main.py and configure lifespan scheduler
+[33m7cbcb48[m Remove Vercel cron config, scheduling now handled via Docker on Codeaza server
+[33m37f399e[m fix: remove create_all from main.py and delegate schema management to Alembic
+[33me948f98[m Remove create_all in favor of Alembic, fix broken initial migration baseline, fix env.py path

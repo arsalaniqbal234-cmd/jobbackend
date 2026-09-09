@@ -62,11 +62,3 @@ def upsert_jobs(db: Session, jobs_data: list):
     result = db.execute(stmt)
     return result.rowcount
 
-
-def get_existing_source_ids(db: Session, source_ids: list):
-    rows = (
-        db.query(JobModel.source_id)
-        .filter(JobModel.source_id.in_(source_ids))
-        .all()
-    )
-    return {row[0] for row in rows}
