@@ -1,29 +1,33 @@
-import logging
+from datetime import datetime, timezone
+
 from apscheduler.schedulers.background import BackgroundScheduler
+
+from app.alerts import run_alert_engine
+from app.config import integer_env
+from app.observability import report_failure
+from app.pipeline import scrape_source
+from app.scrapers import AVAILABLE_SCRAPERS
 from database import SessionLocal
-from app.routers.jobs import _scrape_all  # Updated import
 
-logger = logging.getLogger(__name__)
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(timezone="UTC")
 
-def scheduled_scrape_job():
-    logger.info("Executing scheduled scrape job...")
-    db = SessionLocal()
-    try:
-        results = _scrape_all(db)
-        logger.info(f"Scrape job completed: {results}")
-    except Exception as e:
-        logger.error(f"Scheduled scrape job failed: {e}")
-    finally:
-        db.close()
+
+def alert_tick():
+    with SessionLocal() as db:
+        try:
+            run_alert_engine(db)
+        except Exception as error:
+            db.rollback()
+            report_failure("alert_worker", error)
+
 
 def start_scheduler():
-    scheduler.add_job(
-        scheduled_scrape_job,
-        'interval',
-        hours=6,
-        id='scrape_all_job',
-        replace_existing=True
-    )
+    for source in AVAILABLE_SCRAPERS:
+        scheduler.add_job(
+            scrape_source, "interval", args=[source], hours=integer_env("SCRAPE_INTERVAL_HOURS", 6),
+            id="scrape_" + source, replace_existing=True, max_instances=1, coalesce=True,
+            misfire_grace_time=300, next_run_time=datetime.now(timezone.utc),
+        )
+    scheduler.add_job(alert_tick, "interval", seconds=60, id="alerts",
+                      replace_existing=True, max_instances=1, coalesce=True)
     scheduler.start()
-    logger.info("APScheduler started: Scraper set to run every 6 hours.")

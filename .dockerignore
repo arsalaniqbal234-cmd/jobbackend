@@ -1,4 +1,12 @@
+.git
+venv
 .venv
+node_modules
 __pycache__
+**/__pycache__
 *.pyc
 .env
+.env.*
+tests
+.pytest_cache
+.ruff_cache

@@ -1,23 +1,16 @@
-# Virtual Environment
 venv/
 .venv/
 env/
-
-# Python Bytecode & Cache
+node_modules/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
-
-# Environment Variables
+.ruff_cache/
 .env
-
-# SQLite Databases / Local Data (if applicable)
 *.db
 *.sqlite3
-
-# IDE & OS Specific
 .vscode/
 .idea/
 .DS_Store

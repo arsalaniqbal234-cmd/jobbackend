@@ -1,17 +1,16 @@
-import time
-import logging
-from app.scheduler import start_scheduler
+import signal
+import threading
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.observability import setup_monitoring
+from app.scheduler import scheduler, start_scheduler
 
 if __name__ == "__main__":
-    logger.info("Starting background scheduler process...")
+    setup_monitoring()
+    stopped = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: stopped.set())
+    signal.signal(signal.SIGTERM, lambda *_: stopped.set())
     start_scheduler()
-    
-    # Keep process running in foreground
     try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Stopping background scheduler process...")
+        stopped.wait()
+    finally:
+        scheduler.shutdown(wait=True)
