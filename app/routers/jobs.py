@@ -3,10 +3,11 @@ import os
 import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app import cache, crud, schemas
 from app.auth import verify_api_key
+from app.models import Job
 from app.pipeline import scrape_all, scrape_source
 from app.scrapers import AVAILABLE_SCRAPERS
 from database import get_db
@@ -23,22 +24,29 @@ def parameters(
     salary_period: str = Query("annual", pattern="^(annual|monthly|hourly)$"),
     limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0, le=100000),
     before_id: int | None = Query(None, ge=1),
+    summary: bool = False,
 ):
     return locals()
 
 
-@router.get("/search", response_model=list[schemas.JobResponse])
-@router.get("/jobs", response_model=list[schemas.JobResponse])
+@router.get("/search", response_model=list[schemas.JobResponse], response_model_exclude_unset=True)
+@router.get("/jobs", response_model=list[schemas.JobResponse], response_model_exclude_unset=True)
 def get_jobs(response: Response, params: dict = Depends(parameters), db: Session = Depends(get_db)):
     start = time.perf_counter()
     def load():
-        filters = {k: v for k, v in params.items() if k not in {"limit", "offset", "before_id"}}
+        filters = {k: v for k, v in params.items() if k not in {"limit", "offset", "before_id", "summary"}}
         query = crud.job_query(db, **filters)
         if params["before_id"] is not None:
-            from app.models import Job
             query = query.filter(Job.id < params["before_id"])
-        from app.models import Job
+        fields = [field for field in schemas.JobResponse.model_fields if field != "description"]
+        if params["summary"]:
+            # Feed cards do not need HTML descriptions. Defer the column in SQL as
+            # well as JSON, and forbid accidental per-row lazy loads during serialization.
+            query = query.options(load_only(*(getattr(Job, field) for field in fields), raiseload=True))
         rows = query.order_by(Job.id.desc()).offset(params["offset"]).limit(params["limit"]).all()
+        if params["summary"]:
+            return [schemas.JobResponse.model_validate({field: getattr(row, field) for field in fields})
+                    .model_dump(mode="json", exclude_unset=True) for row in rows]
         return [schemas.JobResponse.model_validate(row).model_dump(mode="json") for row in rows]
     result, cache_status = cache.get_or_load(params, load)
     response.headers["X-Cache"] = cache_status

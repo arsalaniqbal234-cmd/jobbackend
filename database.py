@@ -13,7 +13,9 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
-    connect_args={"connect_timeout": 5, "options": "-c statement_timeout=10000"}
+    # Neon pooler endpoints reject PostgreSQL startup `options`. Query limits
+    # belong at the database/role level when a transaction pooler is in use.
+    connect_args={"connect_timeout": 5}
     if DATABASE_URL.startswith("postgresql") else {},
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

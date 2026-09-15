@@ -44,6 +44,7 @@ def upgrade():
     op.execute("UPDATE jobs SET is_remote = true WHERE source_id LIKE 'remoteok_%' OR source_id LIKE 'jobicy_%'")
     op.add_column("jobs", sa.Column("fingerprint", sa.String(64)))
     seen = set()
+    fingerprint_updates = []
     for row in bind.execute(sa.text("SELECT id, url FROM jobs ORDER BY id")).mappings():
         parts = urlsplit(row["url"].strip())
         query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
@@ -52,8 +53,25 @@ def upgrade():
                          urlencode(sorted(query)), ""))
         value = hashlib.sha256(url.encode()).hexdigest()
         if value not in seen:
-            bind.execute(sa.text("UPDATE jobs SET fingerprint=:value WHERE id=:id"), {"value": value, "id": row["id"]})
+            fingerprint_updates.append({"value": value, "id": row["id"]})
             seen.add(value)
+    # Psycopg2 executes an executemany update one request at a time. Use a values
+    # table so remote databases need only one round trip per 500 existing jobs.
+    for start in range(0, len(fingerprint_updates), 500):
+        chunk = fingerprint_updates[start:start + 500]
+        params = {}
+        values = []
+        for index, item in enumerate(chunk):
+            params[f"id_{index}"] = item["id"]
+            params[f"value_{index}"] = item["value"]
+            values.append(
+                f"(CAST(:id_{index} AS INTEGER), CAST(:value_{index} AS VARCHAR(64)))"
+            )
+        bind.execute(sa.text(
+            "UPDATE jobs AS job SET fingerprint = value_table.value "
+            f"FROM (VALUES {','.join(values)}) AS value_table(id, value) "
+            "WHERE job.id = value_table.id"
+        ), params)
     op.create_unique_constraint("uq_jobs_fingerprint", "jobs", ["fingerprint"])
 
     op.create_table("job_sources",
